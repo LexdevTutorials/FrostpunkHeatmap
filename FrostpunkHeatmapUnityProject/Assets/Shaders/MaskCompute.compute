@@ -1,0 +1,55 @@
+﻿#pragma kernel CSMain
+
+//General variables
+int _BuildingCount;
+int _TextureSize;
+float _MapSize;
+float _Blend;
+
+//Output colors
+float4 _Color0;
+float4 _Color1;
+float4 _Color2;
+float4 _Color3;
+
+//NoiseTexture
+Texture2D _NoiseTex;
+SamplerState sampler_NoiseTex;
+float _NoiseDetail;
+
+//Buffer containing position and heat emission of each building
+StructuredBuffer<float> _BuildingBuffer;
+
+//Mask output texture
+RWTexture2D<float4> _Mask;
+
+//Kernel function that renders the mask
+[numthreads(8,8,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    //Heat val for the texel
+    float val = 0.0f;
+
+    //Texel position
+    float2 texelUVPos = id.xy / (float)_TextureSize;
+    float2 texelWorldPos = (_MapSize * texelUVPos) - (_MapSize * 0.5f);
+
+    //Loop through each building
+    for (int i = 0; i < _BuildingCount; i++)
+    {
+        float2 buildingWorldPos = float2(_BuildingBuffer[4 * i], _BuildingBuffer[4 * i + 1]);
+        float distance = length(texelWorldPos - buildingWorldPos);
+
+        float heatVal = smoothstep(_BuildingBuffer[4 * i + 2] + _Blend, _BuildingBuffer[4 * i + 2], distance);
+        val = max(val, heatVal * _BuildingBuffer[4 * i + 3]);
+    }
+
+    //Apply noise
+    val += _NoiseTex.SampleLevel(sampler_NoiseTex, texelUVPos * _NoiseDetail, 0).r * 0.05f;
+
+    //Change the color based on the calculated value
+    float4 col = lerp(_Color2, _Color3, smoothstep(0.55f, 0.75f, val));
+    col = lerp(_Color1, col, smoothstep(0.3f, 0.5f, val));
+    col = lerp(_Color0, col, smoothstep(0.05f, 0.25f, val));
+    _Mask[id.xy] = col;
+}
