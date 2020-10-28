@@ -81,6 +81,8 @@
             //Fragment function, writes to the GBuffer
             gbuffer frag(v2f i)
             {
+                i.normal = normalize(i.normal);
+
                 gbuffer o;
 
                 //Different variants for heatmap/normal rendering
